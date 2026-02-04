@@ -12,6 +12,39 @@ from PIL import Image
 from torchvision import datasets
 from torchvision.utils import save_image
 
+# Try to import corrupt function from imagenet-c
+try:
+    from imagenet_c import corrupt
+except ImportError:
+    print("Warning: imagenet-c not installed. Using simple corruption functions.")
+    import cv2
+    from scipy.ndimage import gaussian_filter
+    
+    def corrupt(image, corruption_name='gaussian_blur', severity=1):
+        """
+        Simple corruption function as fallback
+        """
+        if corruption_name == 'gaussian_blur':
+            # Apply gaussian blur
+            sigma = severity * 0.5
+            if len(image.shape) == 3:
+                blurred = np.zeros_like(image)
+                for i in range(image.shape[2]):
+                    blurred[:, :, i] = gaussian_filter(image[:, :, i], sigma=sigma)
+                return blurred.astype(np.uint8)
+            else:
+                return gaussian_filter(image, sigma=sigma).astype(np.uint8)
+        
+        elif corruption_name == 'gaussian_noise':
+            # Add gaussian noise
+            noise = np.random.normal(0, severity * 10, image.shape)
+            noisy = image + noise
+            return np.clip(noisy, 0, 255).astype(np.uint8)
+        
+        else:
+            print(f"Warning: Corruption type '{corruption_name}' not implemented. Returning original image.")
+            return image
+
 OUT_DIR = 'results'
 
 
@@ -135,7 +168,7 @@ class DatasetBirds(tv.datasets.ImageFolder):
                  train=True,
                  bboxes=False):
         img_root = os.path.join(root, 'images')
-
+        
         super(DatasetBirds, self).__init__(
             root=img_root,
             transform=None,
@@ -159,9 +192,11 @@ class DatasetBirds(tv.datasets.ImageFolder):
         # obtain filenames of images
 
         path_to_index = os.path.join(root, 'images.txt')
+        
         filenames_to_use = set()
         with open(path_to_index, 'r') as in_file:
             for line in in_file:
+                print(line)
                 idx, fn = line.strip('\n').split(' ', 2)
                 if int(idx) in indices_to_use:
                     filenames_to_use.add(fn)

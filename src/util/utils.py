@@ -145,7 +145,7 @@ def parse_arguments(experiment):
         parser.add_argument('-repeat_concepts', action='store_true', help = "whether you want concepts to be repeated")
         parser.add_argument('-rep', default=None, type=float, help=" percentage of concept repitition")
         parser.add_argument('-gamma', default=0.5, type=float, help="col loss weightage")
-        parser.add_argument('-corruption_name', default='gaussian_blur', type=str, help="if you want to add image corruption")
+        parser.add_argument('-corruption_name', default=None, type=str, help="if you want to add image corruption")
         
         args = parser.parse_args()
         set_seed(args.seed)
