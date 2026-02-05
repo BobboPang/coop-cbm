@@ -87,7 +87,7 @@ def run_epoch(model, optimizer, loader, loss_meter, acc_meter, criterion, attr_c
                 losses.append(args.col_w * loss_op)
                 # pdb.set_trace()
                 if attr_criterion is not None and args.attr_col:
-                    for i in range(args.n_attributes):
+                    for i in range(len(attr_criterion)):
                         attr_op = op_loss(p_out, attr_labels_var[:,i])
                         losses.append(0.001 * attr_op) #############---------name this as lambda or something
             if not args.bottleneck: #loss main is for the main task label (always the first output)
@@ -99,8 +99,8 @@ def run_epoch(model, optimizer, loader, loss_meter, acc_meter, criterion, attr_c
                 losses.append(loss_aux)
                 out_start = 2
             if attr_criterion is not None and args.attr_loss_weight > 0: #X -> A, cotraining, end2end
-                
-                for i in range(args.n_attributes):
+                print(f"Debug: len(attr_criterion)={len(attr_criterion)}, len(outputs)={len(outputs)}, out_start={out_start}")
+                for i in range(len(attr_criterion)):
                     
                     losses.append(args.attr_loss_weight * (1.0 * attr_criterion[i](outputs[i+out_start].squeeze().type(torch.FloatTensor).to(device), attr_labels_var[:, i]) \
                                                             + 0.4 * attr_criterion[i](aux_outputs[i+out_start].squeeze().type(torch.FloatTensor).to(device), attr_labels_var[:, i])))

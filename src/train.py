@@ -81,6 +81,7 @@ def train(model, args):
         else:
             for i in range(args.n_attributes):
                 attr_criterion.append(torch.nn.CrossEntropyLoss())
+        print(f"Created {len(attr_criterion)} attribute criteria for {args.n_attributes} attributes")
     else:
         attr_criterion = None
     if args.optimizer == 'Adam':
