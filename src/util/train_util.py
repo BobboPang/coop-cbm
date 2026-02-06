@@ -6,6 +6,7 @@ import numpy as np
 import torchvision as tv
 import sklearn.model_selection as skms
 from torch.autograd import Variable
+from tqdm import tqdm
 
 from src.model import probe, hyperopt, models
 from src.eval import tti
@@ -24,7 +25,13 @@ def run_epoch_simple(model, optimizer, loader, loss_meter, acc_meter, criterion,
         model.train()
     else:
         model.eval()
-    for _, data in enumerate(loader):
+    
+    # 创建进度条
+    desc = "Training" if is_training else "Validation"
+    pbar = tqdm(enumerate(loader), total=len(loader), desc=desc, 
+                leave=False, ncols=100, bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]')
+    
+    for batch_idx, data in pbar:
         inputs, labels = data
         if isinstance(inputs, list):
             #inputs = [i.long() for i in inputs]
@@ -45,6 +52,13 @@ def run_epoch_simple(model, optimizer, loader, loss_meter, acc_meter, criterion,
             optimizer.zero_grad() #zero the parameter gradients
             loss.backward()
             optimizer.step() #optimizer step to update parameters
+        
+        # 更新进度条显示
+        pbar.set_postfix({
+            'loss': f'{loss_meter.avg:.4f}',
+            'acc': f'{acc_meter.avg:.2f}%'
+        })
+    
     return loss_meter, acc_meter
 
 def run_epoch(model, optimizer, loader, loss_meter, acc_meter, criterion, attr_criterion, args, is_training):
@@ -55,7 +69,13 @@ def run_epoch(model, optimizer, loader, loss_meter, acc_meter, criterion, attr_c
         model.train()
     else:
         model.eval()
-    for _, data in enumerate(loader):
+    
+    # 创建进度条
+    desc = "Training" if is_training else "Validation"
+    pbar = tqdm(enumerate(loader), total=len(loader), desc=desc, 
+                leave=False, ncols=100, bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]')
+    
+    for batch_idx, data in pbar:
         if attr_criterion is None:
             inputs, labels,attr_labels = data
             attr_labels, attr_labels_var = None, None
@@ -99,7 +119,7 @@ def run_epoch(model, optimizer, loader, loss_meter, acc_meter, criterion, attr_c
                 losses.append(loss_aux)
                 out_start = 2
             if attr_criterion is not None and args.attr_loss_weight > 0: #X -> A, cotraining, end2end
-                print(f"Debug: len(attr_criterion)={len(attr_criterion)}, len(outputs)={len(outputs)}, out_start={out_start}")
+                # print(f"Debug: len(attr_criterion)={len(attr_criterion)}, len(outputs)={len(outputs)}, out_start={out_start}")
                 for i in range(args.n_attributes):
                     # 修复: 两个损失项都应该使用 attr_labels_var[:, i]
                     losses.append(args.attr_loss_weight * (1.0 * attr_criterion[i](outputs[i+out_start].squeeze().type(torch.FloatTensor).to(device), attr_labels_var[:, i]) \
@@ -142,5 +162,11 @@ def run_epoch(model, optimizer, loader, loss_meter, acc_meter, criterion, attr_c
             optimizer.zero_grad()
             total_loss.backward()
             optimizer.step()
+        
+        # 更新进度条显示
+        pbar.set_postfix({
+            'loss': f'{loss_meter.avg:.4f}',
+            'acc': f'{acc_meter.avg:.2f}%' if not args.bottleneck else f'{acc_meter.avg:.2f}%'
+        })
     
     return loss_meter, acc_meter

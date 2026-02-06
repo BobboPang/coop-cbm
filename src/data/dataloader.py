@@ -99,7 +99,7 @@ class OODBird(datasets.VisionDataset):
     class_attr_rf.close()
     
     for idx, (im, label) in enumerate(train_bird):
-      print(label)
+      # print(label)
       if label < 200:
         if idx % 1000 == 0:
           print(f'Converting {idx}/{len(train_bird)}')
@@ -196,7 +196,7 @@ class DatasetBirds(tv.datasets.ImageFolder):
         filenames_to_use = set()
         with open(path_to_index, 'r') as in_file:
             for line in in_file:
-                print(line)
+                # print(line)
                 idx, fn = line.strip('\n').split(' ', 2)
                 if int(idx) in indices_to_use:
                     filenames_to_use.add(fn)
@@ -833,26 +833,26 @@ class CelebA(datasets.VisionDataset):
     outtest_black_girl = np.c_[outtest_black_girl, np.ones(len(outtest_black_girl))]
     outtest = np.vstack((outtest_blonde_boy , outtest_black_boy , outtest_blonde_girl , outtest_black_girl))
     all_attributes = np.loadtxt("celeb_data/no_hair_attributes.txt", dtype = int)
-    print(len(train))
+    # print(len(train))
     for i in range(len(train)):
       # pdb.set_trace()
       idx = int(train[i][0][-10:-4])
       attr = all_attributes[idx-1]
-      print(i)
+      # print(i)
       train_set.append((Image.open(train[i][0]), int(float(train[i][1])), attr))
     
     print(len(intest))
     for i in range(len(intest)):
       idx = int(intest[i][0][-10:-4])
       attr = all_attributes[idx-1]
-      print(i)
+      # print(i)
       in_test_set.append((Image.open(intest[i][0]), int(float(intest[i][1])), attr))
 
     print(len(outtest))
     for i in range(len(outtest)):
       idx = int(outtest[i][0][-10:-4])
       attr = all_attributes[idx-1]
-      print(i)
+      # print(i)
       out_test_set.append((Image.open(outtest[i][0]), int(float(outtest[i][1])), attr))
 
     torch.save(train_set, os.path.join(celeb_root, 'train.pt'))

@@ -69,7 +69,7 @@
                 "-log_dir",
                 "Coop/outputs/Concept_XtoC/",
                 "-e",
-                "50",
+                "10",
                 "-optimizer",
                 "sgd",
                 "-pretrained",
