@@ -57,7 +57,7 @@ def run_epoch(model, optimizer, loader, loss_meter, acc_meter, criterion, attr_c
         model.eval()
     for _, data in enumerate(loader):
         if attr_criterion is None:
-            inputs, labels = data
+            inputs, labels,attr_labels = data
             attr_labels, attr_labels_var = None, None
         else:
             inputs, labels, attr_labels = data
@@ -100,8 +100,8 @@ def run_epoch(model, optimizer, loader, loss_meter, acc_meter, criterion, attr_c
                 out_start = 2
             if attr_criterion is not None and args.attr_loss_weight > 0: #X -> A, cotraining, end2end
                 print(f"Debug: len(attr_criterion)={len(attr_criterion)}, len(outputs)={len(outputs)}, out_start={out_start}")
-                for i in range(len(attr_criterion)):
-                    
+                for i in range(args.n_attributes):
+                    # 修复: 两个损失项都应该使用 attr_labels_var[:, i]
                     losses.append(args.attr_loss_weight * (1.0 * attr_criterion[i](outputs[i+out_start].squeeze().type(torch.FloatTensor).to(device), attr_labels_var[:, i]) \
                                                             + 0.4 * attr_criterion[i](aux_outputs[i+out_start].squeeze().type(torch.FloatTensor).to(device), attr_labels_var[:, i])))
         else: #testing or no aux logits
@@ -117,7 +117,7 @@ def run_epoch(model, optimizer, loader, loss_meter, acc_meter, criterion, attr_c
                 losses.append(loss_aux)
                 out_start = 2
             if attr_criterion is not None and args.attr_loss_weight > 0: #X -> A, cotraining, end2end
-                for i in range(len(attr_criterion)):
+                for i in range(args.n_attributes):
                     losses.append(args.attr_loss_weight * attr_criterion[i](outputs[i+out_start].squeeze().type(torch.FloatTensor).to(device), attr_labels_var[:, i]))
 
         if args.bottleneck: #attribute accuracy

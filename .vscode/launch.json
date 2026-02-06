@@ -1,0 +1,107 @@
+{
+    // 使用 IntelliSense 了解相关属性。 
+    // 悬停以查看现有属性的描述。
+    // 欲了解更多信息，请访问: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python Debugger: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "python": "/root/anaconda3/bin/python",
+        },
+        {
+            "name": "[Standard]Debug CUB Experiment",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/experiments.py",
+            "console": "integratedTerminal",
+            "python": "/root/anaconda3/bin/python",
+            "args": [
+                "CUB",
+                "Standard",
+                "-log_dir",
+                "Coop/outputs/",
+                "-e",
+                "1000",
+                "-optimizer",
+                "sgd",
+                "-pretrained",
+                "-use_aux",
+                // "-use_attr",
+                "-n_attributes",
+                "312",
+                "-attr_loss_weight",
+                "1.0",
+                "-normalize_loss",
+                "-b",
+                "64",
+                "-weight_decay",
+                "0.0004",
+                "-lr",
+                "0.01",
+                "-scheduler_step",
+                "20",
+                "-dset",
+                "birds",
+                "--seed",
+                "42",
+                "-data_dir",
+                "/data/project/master/dataset/CUB-200-2011/CUB-200-2011"
+            ],
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "2", // 👈 指定使用GPU 2
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "[Concept_XtoC] Debug CUB Experiment",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/experiments.py",
+            "console": "integratedTerminal",
+            "python": "/root/anaconda3/bin/python",
+            "args": [
+                "CUB",
+                "Concept_XtoC",
+                "-log_dir",
+                "Coop/outputs/Concept_XtoC/",
+                "-e",
+                "50",
+                "-optimizer",
+                "sgd",
+                "-pretrained",
+                "-use_aux",
+                "-use_attr",
+                "-bottleneck",
+                "-weighted_loss",
+                "multiple",
+                "-n_attributes",
+                "312",
+                "-attr_loss_weight",
+                "1.0",
+                "-normalize_loss",
+                "-b",
+                "64",
+                "-weight_decay",
+                "0.0004",
+                "-lr",
+                "0.01",
+                "-scheduler_step",
+                "20",
+                "-dset",
+                "birds",
+                "--seed",
+                "42",
+                "-data_dir",
+                "/data/project/master/dataset/CUB-200-2011/CUB-200-2011"
+            ],
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "2", // 👈 指定使用GPU 2
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        }
+    ]
+}

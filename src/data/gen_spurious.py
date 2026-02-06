@@ -2,7 +2,7 @@ from PIL import Image
 import os, pdb
 import json
 import numpy as np
-from util.utils import set_seed
+from src.util.utils import set_seed
 from collections import defaultdict
 
 N_CLASSES = 200
