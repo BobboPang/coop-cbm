@@ -6,6 +6,7 @@ import numpy as np
 import torchvision as tv
 import sklearn.model_selection as skms
 from torch.autograd import Variable
+from torch.cuda.amp import autocast
 from tqdm import tqdm
 
 from src.model import probe, hyperopt, models
@@ -46,7 +47,7 @@ def run_epoch_simple(model, optimizer, loader, loss_meter, acc_meter, criterion,
         loss = criterion(outputs, labels_var)
         acc = accuracy(outputs, labels, topk=(1,))
         loss_meter.update(loss.item(), inputs.size(0))
-        acc_meter.update(acc[0], inputs.size(0))
+        acc_meter.update(acc[0].item(), inputs.size(0))
 
         if is_training:
             optimizer.zero_grad() #zero the parameter gradients
@@ -61,14 +62,19 @@ def run_epoch_simple(model, optimizer, loader, loss_meter, acc_meter, criterion,
     
     return loss_meter, acc_meter
 
-def run_epoch(model, optimizer, loader, loss_meter, acc_meter, criterion, attr_criterion, args, is_training):
+def run_epoch(model, optimizer, loader, loss_meter, acc_meter, criterion, attr_criterion, args, is_training, scaler=None):
     """
     For the rest of the networks (X -> A, cotraining, simple finetune)
+    支持混合精度训练和梯度累积
     """
     if is_training:
         model.train()
     else:
         model.eval()
+    
+    # 梯度累积步数
+    accumulation_steps = getattr(args, 'accumulation_steps', 1)
+    use_amp = scaler is not None and is_training
     
     # 创建进度条
     desc = "Training" if is_training else "Validation"
@@ -97,48 +103,51 @@ def run_epoch(model, optimizer, loader, loss_meter, acc_meter, criterion, attr_c
 
         labels_var = torch.autograd.Variable(labels)
         labels_var = labels_var.to(device) if torch.cuda.is_available() else labels_var
-        if is_training and args.use_aux:
-            p_out, outputs, aux_outputs = model(inputs_var)
-            losses = []
-            out_start = 0
-            if args.col:
-                op_loss = ConceptOrthogonalLoss(gamma=args.gamma)
-                loss_op = op_loss(p_out,labels_var)
-                losses.append(args.col_w * loss_op)
-                # pdb.set_trace()
-                if attr_criterion is not None and args.attr_col:
-                    for i in range(len(attr_criterion)):
-                        attr_op = op_loss(p_out, attr_labels_var[:,i])
-                        losses.append(0.001 * attr_op) #############---------name this as lambda or something
-            if not args.bottleneck: #loss main is for the main task label (always the first output)
-                loss_main = 1.0 * criterion(outputs[0], labels_var) + 0.4 * criterion(aux_outputs[0], labels_var)
-                losses.append(loss_main)
-                out_start = 1
-            if args.exp == 'Coop':
-                loss_aux = 1.0 * criterion(outputs[1], labels_var) + 0.4 * criterion(aux_outputs[1], labels_var)
-                losses.append(loss_aux)
-                out_start = 2
-            if attr_criterion is not None and args.attr_loss_weight > 0: #X -> A, cotraining, end2end
-                # print(f"Debug: len(attr_criterion)={len(attr_criterion)}, len(outputs)={len(outputs)}, out_start={out_start}")
-                for i in range(args.n_attributes):
-                    # 修复: 两个损失项都应该使用 attr_labels_var[:, i]
-                    losses.append(args.attr_loss_weight * (1.0 * attr_criterion[i](outputs[i+out_start].squeeze().type(torch.FloatTensor).to(device), attr_labels_var[:, i]) \
-                                                            + 0.4 * attr_criterion[i](aux_outputs[i+out_start].squeeze().type(torch.FloatTensor).to(device), attr_labels_var[:, i])))
-        else: #testing or no aux logits
-            outputs = model(inputs_var)
-            losses = []
-            out_start = 0
-            if not args.bottleneck:
-                loss_main = criterion(outputs[0], labels_var)
-                losses.append(loss_main)
-                out_start = 1
-            if args.exp == 'Coop':
-                loss_aux = criterion(outputs[1], labels_var) 
-                losses.append(loss_aux)
-                out_start = 2
-            if attr_criterion is not None and args.attr_loss_weight > 0: #X -> A, cotraining, end2end
-                for i in range(args.n_attributes):
-                    losses.append(args.attr_loss_weight * attr_criterion[i](outputs[i+out_start].squeeze().type(torch.FloatTensor).to(device), attr_labels_var[:, i]))
+        
+        # 使用混合精度训练
+        with autocast(enabled=use_amp):
+            if is_training and args.use_aux:
+                p_out, outputs, aux_outputs = model(inputs_var)
+                losses = []
+                out_start = 0
+                if args.col:
+                    op_loss = ConceptOrthogonalLoss(gamma=args.gamma)
+                    loss_op = op_loss(p_out,labels_var)
+                    losses.append(args.col_w * loss_op)
+                    # pdb.set_trace()
+                    if attr_criterion is not None and args.attr_col:
+                        for i in range(len(attr_criterion)):
+                            attr_op = op_loss(p_out, attr_labels_var[:,i])
+                            losses.append(0.001 * attr_op) #############---------name this as lambda or something
+                if not args.bottleneck: #loss main is for the main task label (always the first output)
+                    loss_main = 1.0 * criterion(outputs[0], labels_var) + 0.4 * criterion(aux_outputs[0], labels_var)
+                    losses.append(loss_main)
+                    out_start = 1
+                if args.exp == 'Coop':
+                    loss_aux = 1.0 * criterion(outputs[1], labels_var) + 0.4 * criterion(aux_outputs[1], labels_var)
+                    losses.append(loss_aux)
+                    out_start = 2
+                if attr_criterion is not None and args.attr_loss_weight > 0: #X -> A, cotraining, end2end
+                    # print(f"Debug: len(attr_criterion)={len(attr_criterion)}, len(outputs)={len(outputs)}, out_start={out_start}")
+                    for i in range(args.n_attributes):
+                        # 修复: 两个损失项都应该使用 attr_labels_var[:, i]
+                        losses.append(args.attr_loss_weight * (1.0 * attr_criterion[i](outputs[i+out_start].squeeze().type(torch.FloatTensor).to(device), attr_labels_var[:, i]) \
+                                                                + 0.4 * attr_criterion[i](aux_outputs[i+out_start].squeeze().type(torch.FloatTensor).to(device), attr_labels_var[:, i])))
+            else: #testing or no aux logits
+                outputs = model(inputs_var)
+                losses = []
+                out_start = 0
+                if not args.bottleneck:
+                    loss_main = criterion(outputs[0], labels_var)
+                    losses.append(loss_main)
+                    out_start = 1
+                if args.exp == 'Coop':
+                    loss_aux = criterion(outputs[1], labels_var) 
+                    losses.append(loss_aux)
+                    out_start = 2
+                if attr_criterion is not None and args.attr_loss_weight > 0: #X -> A, cotraining, end2end
+                    for i in range(args.n_attributes):
+                        losses.append(args.attr_loss_weight * attr_criterion[i](outputs[i+out_start].squeeze().type(torch.FloatTensor).to(device), attr_labels_var[:, i]))
 
         if args.bottleneck: #attribute accuracy
             sigmoid_outputs = torch.nn.Sigmoid()(torch.cat(outputs, dim=1))
@@ -146,7 +155,7 @@ def run_epoch(model, optimizer, loader, loss_meter, acc_meter, criterion, attr_c
             acc_meter.update(acc.data.cpu().numpy(), inputs.size(0))
         else:
             acc = accuracy(outputs[0], labels, topk=(1,)) #only care about class prediction accuracy
-            acc_meter.update(acc[0], inputs.size(0))
+            acc_meter.update(acc[0].item(), inputs.size(0))
 
         if attr_criterion is not None:
             if args.bottleneck:
@@ -157,16 +166,43 @@ def run_epoch(model, optimizer, loader, loss_meter, acc_meter, criterion, attr_c
                     total_loss = total_loss / (1 + args.attr_loss_weight * args.n_attributes)
         else: #finetune
             total_loss = sum(losses)
-        loss_meter.update(total_loss.item(), inputs.size(0))
+        
+        # 梯度累积：除以累积步数
+        total_loss = total_loss / accumulation_steps
+        loss_meter.update(total_loss.item() * accumulation_steps, inputs.size(0))
+        
         if is_training:
-            optimizer.zero_grad()
-            total_loss.backward()
-            optimizer.step()
+            if use_amp:
+                # 使用混合精度训练
+                scaler.scale(total_loss).backward()
+                
+                # 每 accumulation_steps 步更新一次参数
+                if (batch_idx + 1) % accumulation_steps == 0:
+                    scaler.step(optimizer)
+                    scaler.update()
+                    optimizer.zero_grad()
+            else:
+                # 标准训练
+                total_loss.backward()
+                
+                # 每 accumulation_steps 步更新一次参数
+                if (batch_idx + 1) % accumulation_steps == 0:
+                    optimizer.step()
+                    optimizer.zero_grad()
         
         # 更新进度条显示
         pbar.set_postfix({
             'loss': f'{loss_meter.avg:.4f}',
             'acc': f'{acc_meter.avg:.2f}%' if not args.bottleneck else f'{acc_meter.avg:.2f}%'
         })
+    
+    # 处理最后不足 accumulation_steps 的批次
+    if is_training and (batch_idx + 1) % accumulation_steps != 0:
+        if use_amp:
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            optimizer.step()
+        optimizer.zero_grad()
     
     return loss_meter, acc_meter

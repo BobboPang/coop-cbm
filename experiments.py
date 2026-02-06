@@ -43,6 +43,10 @@ def run_experiments(dataset, args):
 
     elif experiment == 'Multitask':
         train_X_to_Cy(*args)
+    
+    elif experiment == 'Coop':
+        # Coop-CBM 模型（论文的核心贡献）
+        train_X_to_Cy(*args)
 
     elif experiment == 'Probe':
         train_probe(*args)
@@ -61,7 +65,7 @@ def parse_arguments():
     assert sys.argv[1].upper() in ['OAI', 'CUB'], 'Please specify the dataset'
     assert sys.argv[2] in ['Concept_XtoC', 'Independent_CtoY', 'Sequential_CtoY',
                            'Standard', 'StandardWithAuxC', 'Multitask', 'Joint', 'Probe',
-                           'TTI', 'Robustness', 'HyperparameterSearch'], \
+                           'TTI', 'Coop', 'Robustness', 'HyperparameterSearch'], \
         'Please specify valid experiment. Current: %s' % sys.argv[2]
     dataset = sys.argv[1].upper()
     experiment = sys.argv[2].upper()
