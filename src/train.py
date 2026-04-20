@@ -73,7 +73,8 @@ def train(model, args):
     logger.flush()
     model = model.to(device)
     criterion = torch.nn.CrossEntropyLoss()
-    if args.use_attr and not args.no_img:
+    # 只有在需要属性预测的实验中才创建属性损失函数
+    if args.use_attr and not args.no_img and args.exp not in ['Standard']:
         attr_criterion = [] #separate criterion (loss function) for each attribute
         if args.weighted_loss:
             for i in range(args.n_attributes):
@@ -84,6 +85,8 @@ def train(model, args):
         print(f"Created {len(attr_criterion)} attribute criteria for {args.n_attributes} attributes")
     else:
         attr_criterion = None
+        if args.exp == 'Standard':
+            print("Standard model: skipping attribute criteria creation")
     if args.optimizer == 'Adam':
         optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr, weight_decay=args.weight_decay)
     elif args.optimizer == 'RMSprop':

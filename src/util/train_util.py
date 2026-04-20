@@ -25,7 +25,11 @@ def run_epoch_simple(model, optimizer, loader, loss_meter, acc_meter, criterion,
     else:
         model.eval()
     for _, data in enumerate(loader):
-        inputs, labels = data
+        # 处理数据解包，可能是2个或3个值
+        if len(data) == 3:
+            inputs, labels, _ = data  # 忽略属性标签
+        else:
+            inputs, labels = data
         if isinstance(inputs, list):
             #inputs = [i.long() for i in inputs]
             inputs = torch.stack(inputs).t().float()
@@ -56,11 +60,12 @@ def run_epoch(model, optimizer, loader, loss_meter, acc_meter, criterion, attr_c
     else:
         model.eval()
     for _, data in enumerate(loader):
+        # 数据加载器总是返回3个值：inputs, labels, attr_labels
+        inputs, labels, attr_labels = data
+            
         if attr_criterion is None:
-            inputs, labels = data
-            attr_labels, attr_labels_var = None, None
+            attr_labels_var = None
         else:
-            inputs, labels, attr_labels = data
             attr_labels = torch.tensor(attr_labels)
             labels = torch.tensor(labels)
             if args.n_attributes > 1:
@@ -98,9 +103,11 @@ def run_epoch(model, optimizer, loader, loss_meter, acc_meter, criterion, attr_c
                 loss_aux = 1.0 * criterion(outputs[1], labels_var) + 0.4 * criterion(aux_outputs[1], labels_var)
                 losses.append(loss_aux)
                 out_start = 2
-            if attr_criterion is not None and args.attr_loss_weight > 0: #X -> A, cotraining, end2end
+            if attr_criterion is not None and args.attr_loss_weight > 0 and len(outputs) > out_start: #X -> A, cotraining, end2end
                 print(f"Debug: len(attr_criterion)={len(attr_criterion)}, len(outputs)={len(outputs)}, out_start={out_start}")
-                for i in range(len(attr_criterion)):
+                # 确保不会超出outputs的范围
+                max_attrs = min(len(attr_criterion), len(outputs) - out_start)
+                for i in range(max_attrs):
                     
                     losses.append(args.attr_loss_weight * (1.0 * attr_criterion[i](outputs[i+out_start].squeeze().type(torch.FloatTensor).to(device), attr_labels_var[:, i]) \
                                                             + 0.4 * attr_criterion[i](aux_outputs[i+out_start].squeeze().type(torch.FloatTensor).to(device), attr_labels_var[:, i])))
@@ -116,8 +123,10 @@ def run_epoch(model, optimizer, loader, loss_meter, acc_meter, criterion, attr_c
                 loss_aux = criterion(outputs[1], labels_var) 
                 losses.append(loss_aux)
                 out_start = 2
-            if attr_criterion is not None and args.attr_loss_weight > 0: #X -> A, cotraining, end2end
-                for i in range(len(attr_criterion)):
+            if attr_criterion is not None and args.attr_loss_weight > 0 and len(outputs) > out_start: #X -> A, cotraining, end2end
+                # 确保不会超出outputs的范围
+                max_attrs = min(len(attr_criterion), len(outputs) - out_start)
+                for i in range(max_attrs):
                     losses.append(args.attr_loss_weight * attr_criterion[i](outputs[i+out_start].squeeze().type(torch.FloatTensor).to(device), attr_labels_var[:, i]))
 
         if args.bottleneck: #attribute accuracy
