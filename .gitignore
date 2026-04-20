@@ -1,9 +1,9 @@
 CMDs/*
 *.pth
 *out
-*.txt
 *cpython*
 *.sh
 sett*
 debug*
 src/data/CUB_200_2011
+outputfiles/
