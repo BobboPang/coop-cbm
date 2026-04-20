@@ -1,18 +1,23 @@
 import os
 import sys
 import torch
-import torch.utils.data as td
-import numpy as np
-import torchvision as tv
-import sklearn.model_selection as skms
-from torch.autograd import Variable
 from torch.cuda.amp import autocast
-from tqdm import tqdm
 
-from src.model import probe, hyperopt, models
-from src.eval import tti
-from src.data.old_dataset import load_data, find_class_imbalance
-from src.util.config import BASE_DIR, N_CLASSES, UPWEIGHT_RATIO, MIN_LR, LR_DECAY_SIZE, N_ATTRIBUTES
+try:
+    from tqdm import tqdm
+except ImportError:
+    class tqdm:
+        """tqdm 未安装时的无操作替代，保持接口兼容。"""
+        def __init__(self, iterable=None, **kwargs):
+            self._iter = iterable
+        def __iter__(self):
+            return iter(self._iter)
+        def set_postfix(self, *args, **kwargs):
+            pass
+        def __len__(self):
+            return len(self._iter)
+
+from src.util.config import N_CLASSES, MIN_LR, LR_DECAY_SIZE, N_ATTRIBUTES
 from analysis import Logger, AverageMeter, accuracy, binary_accuracy
 from src.col import ConceptOrthogonalLoss
 
@@ -82,9 +87,11 @@ def run_epoch(model, optimizer, loader, loss_meter, acc_meter, criterion, attr_c
                 leave=False, ncols=100, bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]')
     
     for batch_idx, data in pbar:
+        # 数据加载器始终返回 (inputs, labels, attr_labels) 三元组
+        inputs, labels, attr_labels = data
+
         if attr_criterion is None:
-            inputs, labels,attr_labels = data
-            attr_labels, attr_labels_var = None, None
+            attr_labels_var = None
         else:
             attr_labels = torch.tensor(attr_labels)
             labels = torch.tensor(labels)

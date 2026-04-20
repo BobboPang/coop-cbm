@@ -2,9 +2,6 @@ import os
 import math
 import time
 from datetime import timedelta
-from src.data import gen_spurious
-from src.eval import tti
-from src.model import hyperopt, probe
 import torch
 
 from src.data.data_sel import *
@@ -12,9 +9,6 @@ from src.model.models import ModelXtoCY, ModelXtoChat_ChatToY, ModelXtoY, ModelX
 from src.util.config import N_CLASSES, MIN_LR, LR_DECAY_SIZE
 from analysis import Logger, AverageMeter
 from src.util.train_util import run_epoch, run_epoch_simple
-from src.model import probe, hyperopt
-from src.eval import tti
-from src.data import gen_spurious
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -56,15 +50,19 @@ def train_X_to_Cy(args):
     train(model, args)
 
 def train_probe(args):
+    from src.model import probe
     probe.run(args)
 
 def test_time_intervention(args):
+    from src.eval import tti
     tti.run(args)
 
 def robustness(args):
+    from src.data import gen_spurious
     gen_spurious.run(args)
 
 def hyperparameter_optimization(args):
+    from src.model import hyperopt
     hyperopt.run(args)
 
 def train(model, args):

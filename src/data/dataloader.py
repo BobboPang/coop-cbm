@@ -15,17 +15,19 @@ from torchvision.utils import save_image
 # Try to import corrupt function from imagenet-c
 try:
     from imagenet_c import corrupt
-except ImportError:
-    print("Warning: imagenet-c not installed. Using simple corruption functions.")
-    import cv2
-    from scipy.ndimage import gaussian_filter
-    
+except Exception:
+    # imagenet-c 或其依赖（cv2/numpy ABI不兼容）不可用时，使用纯 scipy 实现
+    try:
+        from scipy.ndimage import gaussian_filter
+        _scipy_available = True
+    except ImportError:
+        _scipy_available = False
+
     def corrupt(image, corruption_name='gaussian_blur', severity=1):
         """
-        Simple corruption function as fallback
+        Fallback corruption function using scipy only (no cv2 dependency).
         """
-        if corruption_name == 'gaussian_blur':
-            # Apply gaussian blur
+        if corruption_name == 'gaussian_blur' and _scipy_available:
             sigma = severity * 0.5
             if len(image.shape) == 3:
                 blurred = np.zeros_like(image)
@@ -34,15 +36,11 @@ except ImportError:
                 return blurred.astype(np.uint8)
             else:
                 return gaussian_filter(image, sigma=sigma).astype(np.uint8)
-        
         elif corruption_name == 'gaussian_noise':
-            # Add gaussian noise
             noise = np.random.normal(0, severity * 10, image.shape)
-            noisy = image + noise
-            return np.clip(noisy, 0, 255).astype(np.uint8)
-        
+            return np.clip(image + noise, 0, 255).astype(np.uint8)
         else:
-            print(f"Warning: Corruption type '{corruption_name}' not implemented. Returning original image.")
+            print(f"Warning: Corruption '{corruption_name}' not available. Returning original image.")
             return image
 
 OUT_DIR = 'results'
@@ -183,23 +181,42 @@ class DatasetBirds(tv.datasets.ImageFolder):
         self.args = args
         path_to_splits = os.path.join(root, 'train_test_split.txt')
         indices_to_use = list()
-        with open(path_to_splits, 'r') as in_file:
-            for line in in_file:
-                idx, use_train = line.strip('\n').split(' ', 2)
-                if bool(int(use_train)) == self.train:
-                    indices_to_use.append(int(idx))
+        # 自动检测编码（部分文件为 UTF-16/带BOM）
+        for enc in ('utf-8', 'utf-16', 'utf-8-sig', 'latin-1'):
+            try:
+                with open(path_to_splits, 'r', encoding=enc) as in_file:
+                    lines = in_file.readlines()
+                # 过滤空行及含 null 字节的行
+                lines = [l for l in lines if l.strip() and '\x00' not in l]
+                for line in lines:
+                    parts = line.strip('\n').split()
+                    if len(parts) < 2:
+                        continue
+                    idx, use_train = parts[0], parts[1]
+                    if bool(int(use_train)) == self.train:
+                        indices_to_use.append(int(idx))
+                break
+            except (UnicodeDecodeError, ValueError):
+                continue
 
         # obtain filenames of images
-
         path_to_index = os.path.join(root, 'images.txt')
-        
         filenames_to_use = set()
-        with open(path_to_index, 'r') as in_file:
-            for line in in_file:
-                # print(line)
-                idx, fn = line.strip('\n').split(' ', 2)
-                if int(idx) in indices_to_use:
-                    filenames_to_use.add(fn)
+        for enc in ('utf-8', 'utf-16', 'utf-8-sig', 'latin-1'):
+            try:
+                with open(path_to_index, 'r', encoding=enc) as in_file:
+                    lines = in_file.readlines()
+                lines = [l for l in lines if l.strip() and '\x00' not in l]
+                for line in lines:
+                    parts = line.strip('\n').split(None, 1)
+                    if len(parts) < 2:
+                        continue
+                    idx, fn = parts[0], parts[1].strip()
+                    if int(idx) in indices_to_use:
+                        filenames_to_use.add(fn)
+                break
+            except (UnicodeDecodeError, ValueError):
+                continue
         # pdb.set_trace()
         img_paths_cut = {'/'.join(img_path.rsplit('/', 2)[-2:]): idx for idx, (img_path, lb) in enumerate(self.imgs)}
         imgs_to_use = [self.imgs[img_paths_cut[fn]] for fn in filenames_to_use]
@@ -209,17 +226,21 @@ class DatasetBirds(tv.datasets.ImageFolder):
         self.imgs = self.samples = imgs_to_use
         self.targets = targets_to_use
         global C_A
-        C_A = np.zeros((200,312))
-        class_attributes_file = os.path.join(root, 'attributes/class_attribute_labels_continuous.txt') 
-        class_attr_rf = open(class_attributes_file,'r')
-        i = 0
-        for line in class_attr_rf.readlines():
-            strs = line.strip().split(' ')
-            for j in range(len(strs)):
-                strs[j] = float(strs[j])
-                C_A[i][j] = 0.0 if strs[j] < 50.0 else 1.0
-            i+=1
-        class_attr_rf.close()
+        C_A = np.zeros((200, 312))
+        class_attributes_file = os.path.join(root, 'attributes/class_attribute_labels_continuous.txt')
+        if os.path.exists(class_attributes_file):
+            class_attr_rf = open(class_attributes_file, 'r')
+            i = 0
+            for line in class_attr_rf.readlines():
+                strs = line.strip().split(' ')
+                for j in range(len(strs)):
+                    strs[j] = float(strs[j])
+                    C_A[i][j] = 0.0 if strs[j] < 50.0 else 1.0
+                i += 1
+            class_attr_rf.close()
+        else:
+            print(f"Warning: '{class_attributes_file}' not found. "
+                  "Using zero concept labels (OK for Standard / non-concept experiments).")
         # pdb.set_trace()
         if args.repeat_concepts:
           concepts_repeated = int(args.rep*args.n_attributes)
