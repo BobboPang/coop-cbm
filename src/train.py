@@ -78,6 +78,16 @@ def train(model, args):
     logger.write(str(imbalance) + '\n')
     logger.flush()
     model = model.to(device)
+
+    # 多 GPU 支持：使用 DataParallel 将 batch 均分到多卡
+    gpu_ids = getattr(args, 'gpu_ids', None)
+    if gpu_ids and len(gpu_ids) > 1:
+        print(f"Using DataParallel on GPUs: {gpu_ids}")
+        model = torch.nn.DataParallel(model, device_ids=gpu_ids)
+    elif torch.cuda.device_count() > 1 and getattr(args, 'multi_gpu', False):
+        print(f"Using DataParallel on all {torch.cuda.device_count()} GPUs")
+        model = torch.nn.DataParallel(model)
+
     criterion = torch.nn.CrossEntropyLoss()
     # 只有在需要属性预测的实验中才创建属性损失函数
     if args.use_attr and not args.no_img and args.exp not in ['Standard']:
@@ -159,7 +169,9 @@ def train(model, args):
             best_val_epoch = epoch
             best_val_acc = val_acc_meter.avg
             logger.write('New model best model at epoch %d\n' % epoch)
-            torch.save(model, os.path.join(dir, 'best_model_%d.pth' % args.seed))
+            # DataParallel 包装时保存内部 module，确保加载兼容性
+            save_model = model.module if isinstance(model, torch.nn.DataParallel) else model
+            torch.save(save_model, os.path.join(dir, 'best_model_%d.pth' % args.seed))
             best_marker = " 🌟 NEW BEST!"
         else:
             best_marker = ""

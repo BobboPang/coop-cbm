@@ -147,7 +147,11 @@ def parse_arguments(experiment):
         parser.add_argument('-rep', default=None, type=float, help=" percentage of concept repitition")
         parser.add_argument('-gamma', default=0.5, type=float, help="col loss weightage")
         parser.add_argument('-corruption_name', default=None, type=str, help="if you want to add image corruption")
-        
+        parser.add_argument('-multi_gpu', action='store_true',
+                            help='Use all available GPUs via DataParallel')
+        parser.add_argument('-gpu_ids', nargs='+', type=int, default=None,
+                            help='Specific GPU IDs to use, e.g. -gpu_ids 0 1')
+
         args = parser.parse_args()
         set_seed(args.seed)
         args.three_class = (args.n_class_attr == 3)
