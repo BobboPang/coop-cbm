@@ -5,6 +5,8 @@ import numpy as np
 from src.util.utils import set_seed
 from collections import defaultdict
 
+from util.config import CUB_DATA_DIR
+
 N_CLASSES = 200
 
 def mask_image(file_path, out_dir_name, remove_bkgnd=True):
@@ -182,7 +184,7 @@ if __name__ == '__main__':
         description='Make segmentations',
         formatter_class=ArgumentDefaultsHelpFormatter)
 
-    parser.add_argument('--cub_dir', default='/media/pang/U/master_project/Datasets/CUB_200_2011/', help='Path to CUB (should also contain segmentations folder)')
+    parser.add_argument('--cub_dir', default=CUB_DATA_DIR, help='Path to CUB (should also contain segmentations folder)')
     parser.add_argument('--places_dir', default='datasets/places365/', help='Path to Places365 dataset')
     parser.add_argument('--places_split', default='val_large', help='Which Places365 split to use (folder in --places_dir)')
     parser.add_argument('--places_file', default='places365_val.txt', help='Filepath to list of places images and classes (file in --places_dir)')

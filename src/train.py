@@ -6,7 +6,7 @@ import torch
 
 from src.data.data_sel import *
 from src.model.models import ModelXtoCY, ModelXtoChat_ChatToY, ModelXtoY, ModelXtoC, ModelOracleCtoY, ModelXtoCtoY
-from src.util.config import N_CLASSES, MIN_LR, LR_DECAY_SIZE
+from src.util.config import N_CLASSES, MIN_LR, LR_DECAY_SIZE, OUTPUT_DIR
 from analysis import Logger, AverageMeter
 from src.util.train_util import run_epoch, run_epoch_simple
 
@@ -70,7 +70,7 @@ def train(model, args):
     trainset, validset, test_loader = selector(args)
     imbalance = None
     
-    dir = os.path.join('outputfiles', args.exp, args.dset, str(args.n_attributes), str(args.col), str(args.attr_loss_weight))
+    dir = os.path.join(OUTPUT_DIR, args.exp, args.dset, str(args.n_attributes), str(args.col), str(args.attr_loss_weight))
     if not os.path.exists(dir):
         os.makedirs(dir)
     logger = Logger(os.path.join(dir, 'log.txt'))

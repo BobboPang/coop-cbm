@@ -9,7 +9,7 @@ from scipy.stats import entropy
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from util.inference import *
-from util.config import N_CLASSES, N_ATTRIBUTES
+from util.config import CUB_DATA_DIR, N_CLASSES, N_ATTRIBUTES
 from util.utils import get_class_attribute_names
 import pdb
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -298,7 +298,7 @@ def run(args):
 
     attr_group_dict = dict()
     curr_group_idx = 0
-    with open('/media/pang/U/master_project/Datasets/CUB_200_2011/attributes/attributes.txt', 'r') as f:
+    with open(CUB_DATA_DIR, 'r') as f:
         all_lines = f.readlines()
         line0 = all_lines[0]
         prefix = line0.split()[1][:10]

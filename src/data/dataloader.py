@@ -12,6 +12,8 @@ from PIL import Image
 from torchvision import datasets
 from torchvision.utils import save_image
 
+from util.config import CUB_DATA_DIR
+
 # Try to import corrupt function from imagenet-c
 try:
     from imagenet_c import corrupt
@@ -85,7 +87,7 @@ class OODBird(datasets.VisionDataset):
     out_test_set = []
     
     C_A = np.zeros((200,312))
-    class_attributes_file = os.path.join('/media/pang/U/master_project/Datasets/CUB_200_2011', 'attributes/class_attribute_labels_continuous.txt')
+    class_attributes_file = os.path.join(CUB_DATA_DIR, 'attributes/class_attribute_labels_continuous.txt')
     class_attr_rf = open(class_attributes_file,'r')
     i = 0
     for line in class_attr_rf.readlines():

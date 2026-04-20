@@ -9,11 +9,12 @@ import numpy as np
 
 from matplotlib.pyplot import figure, imshow, axis, show
 from matplotlib.image import imread
+from src.util.config import (
+    CUB_DATA_DIR, N_CLASSES, N_ATTRIBUTES, OUTPUT_DIR
+)
 
-N_CLASSES = 200
-N_ATTRIBUTES = 312
 
-def get_class_attribute_names(img_dir = '/media/pang/U/master_project/Datasets/CUB_200_2011/images/', feature_file='/media/pang/U/master_project/Datasets/CUB_200_2011/attributes/attributes.txt'):
+def get_class_attribute_names(img_dir = CUB_DATA_DIR+'/images/', feature_file= CUB_DATA_DIR+'/attributes/attributes.txt'):
     """
     Returns:
     class_to_folder: map class id (0 to 199) to the path to the corresponding image folder (containing actual class names)
@@ -90,9 +91,9 @@ def parse_arguments(experiment):
         return (hyperopt.parse_arguments(parser),)
 
     else:
-        parser.add_argument('-log_dir', default=None, help='where the trained model is saved')
-        parser.add_argument('-data_dir', default=None, help='where the dataset is saved')
-        parser.add_argument('-dset', default='birds', type = str, help='which dataset')
+        parser.add_argument('-log_dir', default=OUTPUT_DIR, help='where the trained model is saved')
+        parser.add_argument('-data_dir', default=CUB_DATA_DIR, help='where the dataset is saved')
+        parser.add_argument('-dset', default='birds', type=str, help='which dataset')
         parser.add_argument('-batch_size', '-b', type=int, help='mini-batch size')
         parser.add_argument('-epochs', '-e', type=int, help='epochs for training process')
         parser.add_argument('-save_step', default=1000, type=int, help='number of epochs to save model')
