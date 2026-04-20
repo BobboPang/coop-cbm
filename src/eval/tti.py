@@ -298,7 +298,7 @@ def run(args):
 
     attr_group_dict = dict()
     curr_group_idx = 0
-    with open('CUB_200_2011/attributes/attributes.txt', 'r') as f:
+    with open('/media/pang/U/master_project/Datasets/CUB_200_2011/attributes/attributes.txt', 'r') as f:
         all_lines = f.readlines()
         line0 = all_lines[0]
         prefix = line0.split()[1][:10]

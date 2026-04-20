@@ -13,7 +13,7 @@ from matplotlib.image import imread
 N_CLASSES = 200
 N_ATTRIBUTES = 312
 
-def get_class_attribute_names(img_dir = 'CUB_200_2011/images/', feature_file='CUB_200_2011/attributes/attributes.txt'):
+def get_class_attribute_names(img_dir = '/media/pang/U/master_project/Datasets/CUB_200_2011/images/', feature_file='/media/pang/U/master_project/Datasets/CUB_200_2011/attributes/attributes.txt'):
     """
     Returns:
     class_to_folder: map class id (0 to 199) to the path to the corresponding image folder (containing actual class names)

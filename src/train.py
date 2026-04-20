@@ -7,6 +7,9 @@ from src.model.models import ModelXtoCY, ModelXtoChat_ChatToY, ModelXtoY, ModelX
 from src.util.config import N_CLASSES, MIN_LR, LR_DECAY_SIZE
 from analysis import Logger, AverageMeter
 from src.util.train_util import run_epoch, run_epoch_simple
+from src.model import probe, hyperopt
+from src.eval import tti
+from src.data import gen_spurious
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 

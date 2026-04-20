@@ -41,7 +41,7 @@ def run_experiments(dataset, args):
     elif experiment == 'StandardWithAuxC':
         train_X_to_y_with_aux_C(*args)
 
-    elif experiment == 'Multitask':
+    elif experiment == 'Multitask' or experiment == 'Coop':
         train_X_to_Cy(*args)
 
     elif experiment == 'Probe':
@@ -60,11 +60,11 @@ def parse_arguments():
     assert len(sys.argv) > 2, 'You need to specify dataset and experiment'
     assert sys.argv[1].upper() in ['OAI', 'CUB'], 'Please specify the dataset'
     assert sys.argv[2] in ['Concept_XtoC', 'Independent_CtoY', 'Sequential_CtoY',
-                           'Standard', 'StandardWithAuxC', 'Multitask', 'Joint', 'Probe',
-                           'TTI', 'Robustness', 'HyperparameterSearch'], \
+                           'Standard', 'StandardWithAuxC', 'Multitask', 'Joint', 'Coop',
+                           'Probe', 'TTI', 'Robustness', 'HyperparameterSearch'], \
         'Please specify valid experiment. Current: %s' % sys.argv[2]
     dataset = sys.argv[1].upper()
-    experiment = sys.argv[2].upper()
+    experiment = sys.argv[2]  # 保留原始大小写，避免 Probe/Coop 等被 upper() 破坏
 
     # Handle accordingly to dataset
     if dataset == 'OAI':
