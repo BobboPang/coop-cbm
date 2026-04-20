@@ -43,6 +43,10 @@ def run_experiments(dataset, args):
 
     elif experiment == 'Multitask' or experiment == 'Coop':
         train_X_to_Cy(*args)
+    
+    elif experiment == 'Coop':
+        # Coop-CBM 模型（论文的核心贡献）
+        train_X_to_Cy(*args)
 
     elif experiment == 'Probe':
         train_probe(*args)

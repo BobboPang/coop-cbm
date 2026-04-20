@@ -1,5 +1,10 @@
 import os
 import math
+import time
+from datetime import timedelta
+from src.data import gen_spurious
+from src.eval import tti
+from src.model import hyperopt, probe
 import torch
 
 from src.data.data_sel import *
@@ -110,8 +115,18 @@ def train(model, args):
     best_val_epoch = -1
     best_val_loss = float('inf')
     best_val_acc = 0
+    
+    # 用于计算预计剩余时间
+    epoch_times = []
+    start_time = time.time()
+
+    print(f"\n{'='*80}")
+    print(f"Starting training for {args.epochs} epochs")
+    print(f"{'='*80}\n")
 
     for epoch in range(0, args.epochs):
+        epoch_start_time = time.time()
+        
         train_loss_meter = AverageMeter()
         train_acc_meter = AverageMeter()
         if args.no_img:
@@ -128,14 +143,40 @@ def train(model, args):
             else:
                 val_loss_meter, val_acc_meter = run_epoch(model, optimizer, val_loader, val_loss_meter, val_acc_meter, criterion, attr_criterion, args, is_training=False)
 
+        # 计算本 epoch 用时
+        epoch_time = time.time() - epoch_start_time
+        epoch_times.append(epoch_time)
+        
+        # 计算预计剩余时间
+        avg_epoch_time = sum(epoch_times) / len(epoch_times)
+        remaining_epochs = args.epochs - (epoch + 1)
+        eta_seconds = avg_epoch_time * remaining_epochs
+        eta = str(timedelta(seconds=int(eta_seconds)))
+        
+        # 计算总用时
+        total_time = time.time() - start_time
+        total_time_str = str(timedelta(seconds=int(total_time)))
+
         if best_val_acc < val_acc_meter.avg:
             best_val_epoch = epoch
             best_val_acc = val_acc_meter.avg
             logger.write('New model best model at epoch %d\n' % epoch)
             torch.save(model, os.path.join(dir, 'best_model_%d.pth' % args.seed))
+            best_marker = " 🌟 NEW BEST!"
+        else:
+            best_marker = ""
 
         train_loss_avg = train_loss_meter.avg
         val_loss_avg = val_loss_meter.avg
+        
+        # 打印带颜色和格式的训练信息
+        print(f"\n{'─'*80}")
+        print(f"Epoch [{epoch+1:3d}/{args.epochs}] | Time: {epoch_time:.1f}s | ETA: {eta} | Total: {total_time_str}")
+        print(f"{'─'*80}")
+        print(f"  Train → Loss: {train_loss_avg:7.4f} | Acc: {train_acc_meter.avg:6.2f}%")
+        print(f"  Val   → Loss: {val_loss_avg:7.4f} | Acc: {val_acc_meter.avg:6.2f}%{best_marker}")
+        print(f"  Best  → Epoch: {best_val_epoch:3d} | Acc: {best_val_acc:6.2f}%")
+        print(f"{'─'*80}")
         
         logger.write('Epoch [%d]:\tTrain loss: %.4f\tTrain accuracy: %.4f\t'
                 'Val loss: %.4f\tVal acc: %.4f\t'
@@ -147,12 +188,19 @@ def train(model, args):
             scheduler.step() #scheduler step to update lr at the end of epoch     
         #inspect lr
         if epoch % 10 == 0:
-            print('Current lr:', scheduler.get_last_lr())
+            current_lr = scheduler.get_last_lr()[0] if hasattr(scheduler, 'get_last_lr') else scheduler.get_lr()[0]
+            print(f'  Current learning rate: {current_lr:.6f}')
 
         if epoch >= 100 and val_acc_meter.avg < 3:
-            print("Early stopping because of low accuracy")
+            print("\n⚠️  Early stopping: Low accuracy")
             break
         if epoch - best_val_epoch >= 300:
-            print("Early stopping because acc hasn't improved for a long time")
+            print("\n⚠️  Early stopping: No improvement for 300 epochs")
             break
+    
+    print(f"\n{'='*80}")
+    print(f"Training completed!")
+    print(f"Total time: {total_time_str}")
+    print(f"Best validation accuracy: {best_val_acc:.2f}% at epoch {best_val_epoch}")
+    print(f"{'='*80}\n")
 
