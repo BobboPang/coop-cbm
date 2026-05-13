@@ -230,6 +230,11 @@ def parse_arguments(parser=None):
     parser.add_argument('-n_trials', help='Number of trials to run, when mode is random', type=int, default=5)
     parser.add_argument('-n_groups', help='Number of groups', type=int, default=28 )
     parser.add_argument('-connect_CY', help='Whether to use concepts as auxiliary features (in multitasking) to predict Y', action='store_true')
+    # inference.py 需要的属性
+    parser.add_argument('-coop', help='whether cooptask model', action='store_true')
+    parser.add_argument('-repeat_concepts', action='store_true', help='whether you want concepts to be repeated')
+    parser.add_argument('-rep', default=None, type=float, help='percentage of concept repetition')
+    parser.add_argument('-corruption_name', default=None, type=str, help='if you want to add image corruption')
     # Policy-TTI 参数
     parser.add_argument('-policy_tti', help='Whether to use learned policy for TTI intervention', action='store_true')
     parser.add_argument('-policy_lr', default=1e-3, type=float, help='learning rate for policy network')
@@ -243,12 +248,12 @@ def parse_arguments(parser=None):
 def run(args):
     _, _, b_class_labels, b_topk_class_outputs, b_class_logits, b_attr_labels, b_attr_outputs, b_attr_outputs_sigmoid, \
         b_wrong_idx, b_attr_outputs2 = eval(args)
-    model = torch.load(args.model_dir, map_location=torch.device(device))
+    model = torch.load(args.model_dir, map_location=torch.device(device), weights_only=False)
     if args.model_dir2:
         if 'rf' in args.model_dir2:
             model2 = load(args.model_dir2)
         else:
-            model2 = torch.load(args.model_dir2, map_location=torch.device(device))
+            model2 = torch.load(args.model_dir2, map_location=torch.device(device), weights_only=False)
     else:  # end2end, split model into 2
         all_mods = list(model.modules())
         # model = ListModule(all_mods[:-1])
@@ -399,12 +404,12 @@ def run(args):
         REPLACE_VAL = 'instance_level'
 
     # stage 2
-    model = torch.load(args.model_dir, map_location=torch.device(device))
+    model = torch.load(args.model_dir, map_location=torch.device(device), weights_only=False)
     if args.model_dir2:
         if 'rf' in args.model_dir2:
             model2 = load(args.model_dir2)
         else:
-            model2 = torch.load(args.model_dir2, map_location=torch.device(device))
+            model2 = torch.load(args.model_dir2, map_location=torch.device(device), weights_only=False)
     else:  # end2end, split model into 2
         all_mods = list(model.modules())
         # model = ListModule(all_mods[:-1])
@@ -422,7 +427,7 @@ def run(args):
         ).to(device)
         policy_path = os.path.join(getattr(args, 'policy_save_dir', '.'), 'policy_net.pth')
         if os.path.exists(policy_path):
-            policy_net.load_state_dict(torch.load(policy_path, map_location=device))
+            policy_net.load_state_dict(torch.load(policy_path, map_location=device, weights_only=False))
             print("Loaded pre-trained policy network from", policy_path)
         else:
             # 使用验证集训练策略网络

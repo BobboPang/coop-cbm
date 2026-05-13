@@ -44,7 +44,7 @@ def eval(args):
     """
     trainset, validset, test_loader = selector(args)
     if args.model_dir:
-        model = torch.load(args.model_dir, map_location=torch.device(device))
+        model = torch.load(args.model_dir, map_location=torch.device(device), weights_only=False)
     else:
         model = None
 
@@ -66,7 +66,7 @@ def eval(args):
         if 'rf' in args.model_dir2:
             model2 = joblib.load(args.model_dir2)
         else:
-            model2 = torch.load(args.model_dir2)
+            model2 = torch.load(args.model_dir2, weights_only=False)
         if not hasattr(model2, 'use_relu'):
             if args.use_relu:
                 model2.use_relu = True
@@ -124,7 +124,7 @@ def eval(args):
             outputs = []
             f = open(args.attribute_group, 'r')
             for line in f:
-                attr_model = torch.load(line.strip())
+                attr_model = torch.load(line.strip(), weights_only=False)
                 outputs.extend(attr_model(inputs_var))
         else:
             outputs = model(inputs_var)
