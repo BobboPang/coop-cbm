@@ -20,6 +20,7 @@ except ImportError:
 from src.util.config import N_CLASSES, MIN_LR, LR_DECAY_SIZE, N_ATTRIBUTES
 from analysis import Logger, AverageMeter, accuracy, binary_accuracy
 from src.col import ConceptOrthogonalLoss
+from src.graph_col import GraphCOLLoss, build_concept_groups
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -125,6 +126,24 @@ def run_epoch(model, optimizer, loader, loss_meter, acc_meter, criterion, attr_c
                         for i in range(len(attr_criterion)):
                             attr_op = op_loss(p_out, attr_labels_var[:,i])
                             losses.append(0.001 * attr_op) #############---------name this as lambda or something
+                # Graph-COL: 基于概念分组的图结构正交损失
+                if getattr(args, 'graph_col', False) and args.n_attributes > 0:
+                    concept_groups, n_groups = build_concept_groups(args.n_attributes)
+                    graph_col_loss_fn = GraphCOLLoss(
+                        gamma=args.gamma, concept_groups=concept_groups, n_groups=n_groups
+                    )
+                    # 从 outputs 中提取概念预测（sigmoid 后）
+                    if args.exp == 'Coop':
+                        out_start_gc = 2
+                    elif not args.bottleneck:
+                        out_start_gc = 1
+                    else:
+                        out_start_gc = 0
+                    concept_preds_sig = torch.cat([
+                        torch.nn.Sigmoid()(outputs[i+out_start_gc]) for i in range(args.n_attributes)
+                    ], dim=1)
+                    graph_col_loss = graph_col_loss_fn(concept_preds_sig, labels_var)
+                    losses.append(getattr(args, 'graph_col_w', 1.0) * graph_col_loss)
                 if not args.bottleneck: #loss main is for the main task label (always the first output)
                     loss_main = 1.0 * criterion(outputs[0], labels_var) + 0.4 * criterion(aux_outputs[0], labels_var)
                     losses.append(loss_main)

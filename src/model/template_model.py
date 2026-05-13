@@ -9,7 +9,7 @@ from torch.nn import Parameter
 import torch.nn.functional as F
 import torch.utils.model_zoo as model_zoo
 
-__all__ = ['MLP', 'Inception3', 'inception_v3', 'End2EndModelCoop']
+__all__ = ['MLP', 'Inception3', 'inception_v3', 'End2EndModelCoop', 'ConceptGroupAggregator']
 
 model_urls = {
     # Downloaded inception model (optional)
@@ -17,6 +17,51 @@ model_urls = {
     # Inception v3 ported from TensorFlow
     'inception_v3_google': 'https://download.pytorch.org/models/inception_v3_google-1a9a5a14.pth',
 }
+
+class ConceptGroupAggregator(nn.Module):
+    """概念组聚合器：在模型前向传播中融合组内上下文。
+
+    将 312 个独立概念头的 logits 按语义组聚合，
+    使同组概念（如 wing_color 系列）共享上下文信息。
+    """
+
+    def __init__(self, n_attributes, concept_groups, n_groups):
+        super().__init__()
+        self.n_attributes = n_attributes
+        self.concept_groups = concept_groups
+        self.n_groups = n_groups
+        # 每组一个可学习混合权重（sigmoid 后在 [0,1]）
+        self.group_alpha = nn.Parameter(torch.full((n_groups,), 0.3))
+        # 组内注意力：每组的小型 MLP 生成注意力权重
+        self.group_attn = nn.ModuleList()
+        for g in range(n_groups):
+            self.group_attn.append(nn.Sequential(
+                nn.Linear(1, 8), nn.ReLU(), nn.Linear(8, 1),
+            ))
+
+    def forward(self, concept_logits):
+        """融合组内上下文：individual + alpha * group_context。
+
+        Args:
+            concept_logits: (N, 312) 独立概念头的 logits
+        Returns:
+            enhanced_logits: (N, 312) 融合组内上下文后的 logits
+        """
+        enhanced = concept_logits.clone()
+        for g in range(self.n_groups):
+            attr_indices = self.concept_groups[g]
+            group_logits = concept_logits[:, attr_indices]
+            # 组内注意力加权均值
+            attn_weights = torch.cat([
+                self.group_attn[g](group_logits[:, i:i+1]) for i in range(len(attr_indices))
+            ], dim=1)
+            attn_weights = F.softmax(attn_weights, dim=1)
+            group_context = (attn_weights * group_logits).sum(dim=1, keepdim=True)
+            alpha = torch.sigmoid(self.group_alpha[g])
+            for i, attr_idx in enumerate(attr_indices):
+                enhanced[:, attr_idx] = concept_logits[:, attr_idx] + alpha * group_context.squeeze(1)
+        return enhanced
+
 
 class End2EndModelCoop(torch.nn.Module):
     def __init__(self, model1, model2, use_relu=False, use_sigmoid=False, n_class_attr=2):
@@ -130,7 +175,7 @@ def inception_v3(pretrained, freeze, **kwargs):
 
 class Inception3(nn.Module):
 
-    def __init__(self, num_classes, aux_logits=False, transform_input=False, n_attributes=0, bottleneck=False, expand_dim=0, three_class=False, connect_CY=False):
+    def __init__(self, num_classes, aux_logits=False, transform_input=False, n_attributes=0, bottleneck=False, expand_dim=0, three_class=False, connect_CY=False, graph_col=False, concept_groups=None, n_groups=28):
         """
         Args:
         num_classes: number of main task classes
@@ -146,6 +191,11 @@ class Inception3(nn.Module):
         self.transform_input = transform_input
         self.n_attributes = n_attributes
         self.bottleneck = bottleneck
+        self.graph_col = graph_col
+        # 概念组聚合器：仅在 graph_col 模式下启用
+        self.group_aggregator = None
+        if graph_col and concept_groups is not None:
+            self.group_aggregator = ConceptGroupAggregator(n_attributes, concept_groups, n_groups)
         self.Conv2d_1a_3x3 = BasicConv2d(3, 32, kernel_size=3, stride=2)
         self.Conv2d_2a_3x3 = BasicConv2d(32, 32, kernel_size=3)
         self.Conv2d_2b_3x3 = BasicConv2d(32, 64, kernel_size=3, padding=1)
@@ -251,6 +301,12 @@ class Inception3(nn.Module):
         out = []
         for fc in self.all_fc:
             out.append(fc(x))
+        # Graph-COL 组内聚合：融合组上下文后更新概念预测
+        if self.graph_col and self.group_aggregator is not None and self.n_attributes > 0 and not self.bottleneck:
+            concept_logits = torch.cat(out[1:], dim=1)  # (N, 312)
+            enhanced = self.group_aggregator(concept_logits)
+            for i in range(self.n_attributes):
+                out[1 + i] = enhanced[:, i:i+1]
         if self.n_attributes > 0 and not self.bottleneck and self.cy_fc is not None:
             attr_preds = torch.cat(out[1:], dim=1)
             out[0] += self.cy_fc(attr_preds)

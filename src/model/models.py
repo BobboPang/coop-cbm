@@ -1,5 +1,6 @@
 
 from src.model.template_model import MLP, inception_v3, End2EndModel, End2EndModelCoop
+from src.graph_col import build_concept_groups
 import torchvision, pdb
 
 
@@ -40,9 +41,14 @@ def ModelXtoY(pretrained, freeze, num_classes, use_aux):
     return inception_v3(pretrained=pretrained, freeze=freeze, num_classes=num_classes, aux_logits=use_aux)
 
 # Coop-CBM Model
-def ModelXtoCY(pretrained, freeze, num_classes, use_aux, n_attributes, three_class, connect_CY):
+def ModelXtoCY(pretrained, freeze, num_classes, use_aux, n_attributes, three_class, connect_CY, graph_col=False):
+    # 构建 Graph-COL 所需的概念分组
+    concept_groups, n_groups = None, 28
+    if graph_col:
+        concept_groups, n_groups = build_concept_groups(n_attributes)
     model1 = inception_v3(pretrained=pretrained, freeze=freeze, num_classes=num_classes, aux_logits=use_aux,
                         n_attributes=n_attributes, bottleneck=False, three_class=three_class,
-                        connect_CY=connect_CY)
+                        connect_CY=connect_CY, graph_col=graph_col,
+                        concept_groups=concept_groups, n_groups=n_groups)
     model2 = MLP(input_dim=n_attributes * 1, num_classes=num_classes, expand_dim=0)
     return End2EndModelCoop(model1, model2, use_relu=False, use_sigmoid=False, n_class_attr=2)

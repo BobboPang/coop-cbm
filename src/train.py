@@ -45,8 +45,10 @@ def train_X_to_Cy(args):
     if args.repeat_concepts:
         concepts_repeated = int(args.rep*args.n_attributes)
         args.n_attributes = args.n_attributes + concepts_repeated
+    graph_col = getattr(args, 'graph_col', False)
     model = ModelXtoCY(pretrained=args.pretrained, freeze=args.freeze, num_classes=N_CLASSES, use_aux=args.use_aux,
-                       n_attributes=args.n_attributes, three_class=args.three_class, connect_CY=args.connect_CY)
+                       n_attributes=args.n_attributes, three_class=args.three_class, connect_CY=args.connect_CY,
+                       graph_col=graph_col)
     train(model, args)
 
 def train_probe(args):

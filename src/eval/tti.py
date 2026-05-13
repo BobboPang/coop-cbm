@@ -11,6 +11,8 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from util.inference import *
 from util.config import CUB_DATA_DIR, N_CLASSES, N_ATTRIBUTES
 from util.utils import get_class_attribute_names
+from src.graph_col import build_concept_groups
+from src.policy_tti import PolicyNetwork, PolicyTTITrainer, policy_intervention
 import pdb
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -29,7 +31,7 @@ def get_stage2_pred(a_hat):
 def simulate_group_intervention(mode, replace_val, preds_by_attr, ptl_5, ptl_95, model2, attr_group_dict, b_attr_binary_outputs, b_class_labels, b_class_logits,
                                 b_attr_outputs, b_attr_outputs_sigmoid, b_attr_outputs2, b_attr_labels,
                                 instance_attr_labels, uncertainty_attr_labels, use_not_visible, min_uncertainty,
-                                n_replace, use_relu, use_sigmoid, n_trials=1, connect_CY=False):
+                                n_replace, use_relu, use_sigmoid, n_trials=1, connect_CY=False, policy_net=None):
     assert len(instance_attr_labels) == len(b_attr_labels), 'len(instance_attr_labels): %d, len(b_attr_labels): %d' % (
     len(instance_attr_labels), len(b_attr_labels))
     assert len(uncertainty_attr_labels) == len(
@@ -53,6 +55,10 @@ def simulate_group_intervention(mode, replace_val, preds_by_attr, ptl_5, ptl_95,
                     replace_idx.extend(attr_group_dict[i])
                 # # pdb.set_trace()()
                 return replace_idx
+
+        elif mode == 'policy':  # Policy-TTI: 使用学到的策略选择干预组
+            # Policy 模式在下面 img_id 循环中单独处理
+            pass
 
         else:  # entropy
             replace_fn = lambda attr_preds, attr_preds_sigmoid, attr_labels, img_id, n_replace, replace_cached: \
@@ -122,6 +128,19 @@ def simulate_group_intervention(mode, replace_val, preds_by_attr, ptl_5, ptl_95,
             if mode == 'entropy':
                 attr_labels = b_attr_labels[img_id * args.n_attributes: (img_id + 1) * args.n_attributes]
                 replace_idx = replace_fn(attr_preds, attr_preds_sigmoid, attr_labels, img_id, n_replace, replace_cached)
+            elif mode == 'policy' and policy_net is not None:
+                # Policy-TTI: 使用策略网络选择干预组
+                concept_conf = torch.tensor(attr_preds_sigmoid, dtype=torch.float32)
+                attr_labels_img = np.array(b_attr_labels[img_id * args.n_attributes: (img_id + 1) * args.n_attributes])
+                group_ids = policy_intervention(
+                    policy_net, concept_conf, torch.tensor(attr_labels_img, dtype=torch.float32),
+                    model2, attr_group_dict, ptl_5, ptl_95,
+                    n_replace, use_relu=use_relu, use_sigmoid=use_sigmoid,
+                    device=device
+                )
+                replace_idx = []
+                for g in group_ids:
+                    replace_idx.extend(attr_group_dict[g])
             else:
                 replace_idx = replace_fn(attr_preds)
             # # pdb.set_trace()()
@@ -211,6 +230,13 @@ def parse_arguments(parser=None):
     parser.add_argument('-n_trials', help='Number of trials to run, when mode is random', type=int, default=5)
     parser.add_argument('-n_groups', help='Number of groups', type=int, default=28 )
     parser.add_argument('-connect_CY', help='Whether to use concepts as auxiliary features (in multitasking) to predict Y', action='store_true')
+    # Policy-TTI 参数
+    parser.add_argument('-policy_tti', help='Whether to use learned policy for TTI intervention', action='store_true')
+    parser.add_argument('-policy_lr', default=1e-3, type=float, help='learning rate for policy network')
+    parser.add_argument('-policy_epochs', default=50, type=int, help='training epochs for policy network')
+    parser.add_argument('-policy_hidden_dim', default=64, type=int, help='hidden dim for policy network')
+    parser.add_argument('-policy_max_steps', default=10, type=int, help='max intervention steps per episode')
+    parser.add_argument('-policy_save_dir', default='.', help='directory to save/load policy network')
     args = parser.parse_args()
     return args
 
@@ -366,7 +392,7 @@ def run(args):
     # pdb.set_trace()()
     N_TRIALS = args.n_trials
     MIN_UNCERTAINTY_GAP = 0
-    assert args.mode in ['wrong_idx', 'entropy', 'uncertainty', 'random']
+    assert args.mode in ['wrong_idx', 'entropy', 'uncertainty', 'random', 'policy']
     if args.class_level:
         REPLACE_VAL = 'class_level'
     else:
@@ -385,6 +411,42 @@ def run(args):
         model2 = all_mods[-1]  # last fully connected layer
 
     results = []
+    # Policy-TTI: 训练或加载策略网络
+    policy_net = None
+    if getattr(args, 'policy_tti', False):
+        concept_groups, n_groups = build_concept_groups(args.n_attributes)
+        policy_net = PolicyNetwork(
+            n_attributes=args.n_attributes,
+            n_groups=n_groups,
+            hidden_dim=getattr(args, 'policy_hidden_dim', 64)
+        ).to(device)
+        policy_path = os.path.join(getattr(args, 'policy_save_dir', '.'), 'policy_net.pth')
+        if os.path.exists(policy_path):
+            policy_net.load_state_dict(torch.load(policy_path, map_location=device))
+            print("Loaded pre-trained policy network from", policy_path)
+        else:
+            # 使用验证集训练策略网络
+            print("Training policy network with REINFORCE...")
+            trainer = PolicyTTITrainer(
+                policy_net, n_attributes=args.n_attributes, n_groups=n_groups,
+                lr=getattr(args, 'policy_lr', 1e-3)
+            )
+            # 使用测试集的预测数据训练策略（TTI 评估中无单独验证集）
+            preds_sig_2d = np.array(b_attr_outputs_sigmoid).reshape(-1, args.n_attributes)
+            labels_2d = np.array(b_attr_labels).reshape(-1, args.n_attributes)
+            policy_net = trainer.train(
+                preds_sig_2d, labels_2d, model2,
+                concept_groups, ptl_5, ptl_95,
+                n_epochs=getattr(args, 'policy_epochs', 50),
+                max_steps=getattr(args, 'policy_max_steps', 10),
+                use_relu=args.use_relu, use_sigmoid=args.use_sigmoid,
+                device=device
+            )
+            torch.save(policy_net.state_dict(), policy_path)
+            print("Saved policy network to", policy_path)
+        # 覆盖 mode 为 policy
+        args.mode = 'policy'
+
     for n_replace in list(range(args.n_groups + 1)):
         if 'random' not in args.mode:
             N_TRIALS = 1
@@ -406,7 +468,8 @@ def run(args):
                                           n_replace, args.use_relu,
                                           args.use_sigmoid,
                                           n_trials=N_TRIALS,
-                                          connect_CY=args.connect_CY)
+                                          connect_CY=args.connect_CY,
+                                          policy_net=policy_net)
         print(n_replace, acc)
         results.append([n_replace, acc])
     return results

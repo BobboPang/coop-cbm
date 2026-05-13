@@ -12,6 +12,7 @@ from matplotlib.image import imread
 from src.util.config import (
     CUB_DATA_DIR, N_CLASSES, N_ATTRIBUTES, OUTPUT_DIR
 )
+from src.graph_col import build_concept_groups
 
 
 def get_class_attribute_names(img_dir = CUB_DATA_DIR+'/images/', feature_file= CUB_DATA_DIR+'/attributes/attributes.txt'):
@@ -146,6 +147,17 @@ def parse_arguments(experiment):
         parser.add_argument('-repeat_concepts', action='store_true', help = "whether you want concepts to be repeated")
         parser.add_argument('-rep', default=None, type=float, help=" percentage of concept repitition")
         parser.add_argument('-gamma', default=0.5, type=float, help="col loss weightage")
+        # Graph-COL 参数
+        parser.add_argument('-graph_col', action='store_true',
+                            help='Whether to use graph-aware COL loss with concept group structure')
+        parser.add_argument('-graph_col_w', default=1.0, type=float, help='weight for graph-col loss')
+        # Policy-TTI 参数
+        parser.add_argument('-policy_tti', action='store_true',
+                            help='Whether to use learned policy for TTI intervention')
+        parser.add_argument('-policy_lr', default=1e-3, type=float, help='learning rate for policy network')
+        parser.add_argument('-policy_epochs', default=50, type=int, help='training epochs for policy network')
+        parser.add_argument('-policy_hidden_dim', default=64, type=int, help='hidden dim for policy network')
+        parser.add_argument('-policy_max_steps', default=10, type=int, help='max intervention steps per episode')
         parser.add_argument('-corruption_name', default=None, type=str, help="if you want to add image corruption")
         parser.add_argument('-multi_gpu', action='store_true',
                             help='Use all available GPUs via DataParallel')
