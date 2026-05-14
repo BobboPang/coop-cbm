@@ -301,13 +301,13 @@ class Inception3(nn.Module):
         out = []
         for fc in self.all_fc:
             out.append(fc(x))
-        # Graph-COL 组内聚合：融合组上下文后更新概念预测
-        if self.graph_col and self.group_aggregator is not None and self.n_attributes > 0 and not self.bottleneck:
+        # Graph-COL 组内聚合：融合组上下文后更新概念预测（兼容旧模型）
+        if getattr(self, 'graph_col', False) and getattr(self, 'group_aggregator', None) is not None and self.n_attributes > 0 and not self.bottleneck:
             concept_logits = torch.cat(out[1:], dim=1)  # (N, 312)
             enhanced = self.group_aggregator(concept_logits)
             for i in range(self.n_attributes):
                 out[1 + i] = enhanced[:, i:i+1]
-        if self.n_attributes > 0 and not self.bottleneck and self.cy_fc is not None:
+        if self.n_attributes > 0 and not self.bottleneck and getattr(self, 'cy_fc', None) is not None:
             attr_preds = torch.cat(out[1:], dim=1)
             out[0] += self.cy_fc(attr_preds)
         if self.training and self.aux_logits:
@@ -559,7 +559,7 @@ class InceptionAux(nn.Module):
         out = []
         for fc in self.all_fc:
             out.append(fc(x))
-        if self.n_attributes > 0 and not self.bottleneck and self.cy_fc is not None:
+        if self.n_attributes > 0 and not self.bottleneck and getattr(self, 'cy_fc', None) is not None:
             attr_preds = torch.cat(out[1:], dim=1)
             out[0] += self.cy_fc(attr_preds)
         return out
