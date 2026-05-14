@@ -328,7 +328,8 @@ def run(args):
 
     attr_group_dict = dict()
     curr_group_idx = 0
-    with open(CUB_DATA_DIR, 'r') as f:
+    attr_file = os.path.join(CUB_DATA_DIR, 'attributes/attributes.txt')
+    with open(attr_file, 'r') as f:
         all_lines = f.readlines()
         line0 = all_lines[0]
         prefix = line0.split()[1][:10]
