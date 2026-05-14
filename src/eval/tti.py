@@ -149,9 +149,10 @@ def simulate_group_intervention(mode, replace_val, preds_by_attr, ptl_5, ptl_95,
 
         # print(n_replace, len(all_attr_ids)/len(b_class_labels))
         replace_cached = all_attr_ids
-        pred_vals = b_attr_binary_outputs[attr_replace_idx]
-        true_vals = np.array(b_attr_labels)[attr_replace_idx]
-        print("acc among the replaced values:", (pred_vals == true_vals).mean())
+        if len(attr_replace_idx) > 0:
+            pred_vals = b_attr_binary_outputs[attr_replace_idx]
+            true_vals = np.array(b_attr_labels)[attr_replace_idx]
+            print("acc among the replaced values:", (pred_vals == true_vals).mean())
 
         if replace_val == 'class_level':
             b_attr_new[attr_replace_idx] = np.array(b_attr_labels)[attr_replace_idx]
