@@ -187,11 +187,12 @@ def simulate_group_intervention(mode, replace_val, preds_by_attr, ptl_5, ptl_95,
         # # pdb.set_trace()()
         # stage2_inputs = torch.from_numpy(np.array(b_attr_labels)).to(device)
 
-        stage2_inputs = torch.from_numpy(np.array(b_attr_labels)).to(device).float()
-        
+        # stage2 应使用干预替换后的 b_attr_new，而非全量真实标签 b_attr_labels
+        stage2_inputs = torch.from_numpy(b_attr_new).to(device).float()
+
         if connect_CY:  # class_outputs is currently contributed by C --> Y
             new_cy_outputs = model2(stage2_inputs)
-            old_stage2_inputs = torch.from_numpy(np.array(b_attr_outputs).reshape(-1, args.n_attributes)).to(device)
+            old_stage2_inputs = torch.from_numpy(np.array(b_attr_outputs).reshape(-1, args.n_attributes)).to(device).float()
             old_cy_outputs = model2(old_stage2_inputs)
             class_outputs = torch.from_numpy(b_class_logits).to(device) + (new_cy_outputs - old_cy_outputs)
         else:
@@ -501,5 +502,6 @@ if __name__ == '__main__':
     for no_intervention_group, value in zip(no_intervention_groups, values):
         output_string += '%.4f %.4f\n' % (no_intervention_group, value)
     print(output_string)
+    os.makedirs(args.log_dir, exist_ok=True)
     output = open(os.path.join(args.log_dir, 'results.txt'), 'w')
     output.write(output_string)
