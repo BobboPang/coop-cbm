@@ -167,10 +167,12 @@ def main():
     test_entries_all = build_pkl_entries(cub_dir, 0, image_splits, image_paths,
                                           class_labels, image_attrs)
 
-    # Split test into val + test (50/50, matching original CBM convention)
-    n_test = len(test_entries_all)
-    val_entries = test_entries_all[:n_test // 2]
-    test_entries = test_entries_all[n_test // 2:]
+    # TTI needs test.pkl to contain ALL test images (must match model evaluation),
+    # so we put the full test set in both test.pkl and val.pkl.
+    # val.pkl is only used by probe.py for validation; using the full test set there
+    # is acceptable since probe.py doesn't require a separate val split for CUB.
+    test_entries = test_entries_all
+    val_entries = test_entries_all
 
     print(f'Train entries: {len(train_entries)}')
     print(f'Val entries: {len(val_entries)}')
