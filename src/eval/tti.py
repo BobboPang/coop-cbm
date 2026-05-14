@@ -42,7 +42,7 @@ def simulate_group_intervention(mode, replace_val, preds_by_attr, ptl_5, ptl_95,
 
 
     for _ in range(n_trials):
-        b_attr_new = np.array(b_attr_outputs[:])
+        b_attr_new = np.array(b_attr_outputs[:]).flatten()
         # # pdb.set_trace()()
         if mode == 'random':
             replace_fn = lambda attr_preds: replace_random(attr_preds)
@@ -151,25 +151,26 @@ def simulate_group_intervention(mode, replace_val, preds_by_attr, ptl_5, ptl_95,
         replace_cached = all_attr_ids
         if len(attr_replace_idx) > 0:
             pred_vals = b_attr_binary_outputs[attr_replace_idx]
-            true_vals = np.array(b_attr_labels)[attr_replace_idx]
+            true_vals = np.array(b_attr_labels).flatten()[attr_replace_idx]
             print("acc among the replaced values:", (pred_vals == true_vals).mean())
 
-        if replace_val == 'class_level':
-            b_attr_new[attr_replace_idx] = np.array(b_attr_labels)[attr_replace_idx]
-        else:
-            b_attr_new[attr_replace_idx] = np.array(instance_attr_labels)[attr_replace_idx]
+        if len(attr_replace_idx) > 0:
+            if replace_val == 'class_level':
+                b_attr_new[attr_replace_idx] = np.array(b_attr_labels).flatten()[attr_replace_idx]
+            else:
+                b_attr_new[attr_replace_idx] = np.array(instance_attr_labels)[attr_replace_idx]
 
-        if use_not_visible:
-            not_visible_idx = np.where(np.array(uncertainty_attr_labels) == 1)[0]
-            for idx in attr_replace_idx:
-                if idx in not_visible_idx:
-                    b_attr_new[idx] = 0
+            if use_not_visible:
+                not_visible_idx = np.where(np.array(uncertainty_attr_labels) == 1)[0]
+                for idx in attr_replace_idx:
+                    if idx in not_visible_idx:
+                        b_attr_new[idx] = 0
 
-        if use_relu or not use_sigmoid:  # replace with percentile values
-            binary_vals = b_attr_new[attr_replace_idx]
-            for j, replace_idx in enumerate(attr_replace_idx):
-                attr_idx = replace_idx % args.n_attributes
-                b_attr_new[replace_idx] = (1 - binary_vals[j]) * ptl_5[attr_idx] + binary_vals[j] * ptl_95[attr_idx]
+            if use_relu or not use_sigmoid:  # replace with percentile values
+                binary_vals = b_attr_new[attr_replace_idx]
+                for j, replace_idx in enumerate(attr_replace_idx):
+                    attr_idx = replace_idx % args.n_attributes
+                    b_attr_new[replace_idx] = (1 - binary_vals[j]) * ptl_5[attr_idx] + binary_vals[j] * ptl_95[attr_idx]
 
         # stage 2
         K = [1, 3, 5]
