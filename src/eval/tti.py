@@ -258,8 +258,7 @@ def run(args):
         all_mods = list(model.modules())
         # model = ListModule(all_mods[:-1])
         model2 = all_mods[-1]  # last fully connected layer
-    pdb.set_trace()
-# /
+    # /
     
     model2.eval()
     b_attr_outputs = np.array(b_attr_outputs)
